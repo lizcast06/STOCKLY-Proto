@@ -1,0 +1,17 @@
+name: STOCKLY load test
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: API base URL to measure
+        required: true
+        type: string
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: grafana/setup-k6-action@v1
+      - run: k6 run k6/stockly-load.js
+        env:
+          BASE_URL: ${{ inputs.base_url }}

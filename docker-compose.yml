@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: stockly
+      POSTGRES_PASSWORD: stockly
+      POSTGRES_DB: stockly
+    ports: ["5432:5432"]
+    volumes: ["stockly_pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stockly -d stockly"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    command: sh -c "npx prisma migrate deploy && npm run dev:api"
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://stockly:stockly@db:5432/stockly?schema=public
+      PORT: 3001
+      WEB_ORIGIN: http://localhost:5173
+    ports: ["3001:3001"]
+    volumes:
+      - ./server:/app/server
+      - ./src/domain:/app/src/domain
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    environment:
+      API_PROXY_TARGET: http://api:3001
+    ports: ["5173:5173"]
+    volumes:
+      - ./src:/app/src
+      - ./index.html:/app/index.html
+      - ./vite.config.ts:/app/vite.config.ts
+    depends_on: [api]
+volumes:
+  stockly_pg:

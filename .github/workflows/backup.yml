@@ -1,0 +1,27 @@
+name: STOCKLY database backup
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 6 * * *'
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Create encrypted backup
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_ENCRYPTION_PASSWORD }}
+        run: |
+          test -n "$DATABASE_URL" || (echo "Add PRODUCTION_DATABASE_URL to repository secrets." && exit 1)
+          test -n "$BACKUP_PASSWORD" || (echo "Add BACKUP_ENCRYPTION_PASSWORD to repository secrets." && exit 1)
+          mkdir -p backups
+          pg_dump "$DATABASE_URL" --format=custom --no-owner --no-privileges > backups/stockly.dump
+          gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_PASSWORD" --output backups/stockly.dump.gpg backups/stockly.dump
+          rm backups/stockly.dump
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stockly-database-${{ github.run_id }}
+          path: backups/stockly.dump.gpg
+          retention-days: 90

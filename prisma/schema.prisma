@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EMPLOYEE
+}
+
+enum MovementType {
+  ENTRY
+  EXIT
+  ADJUSTMENT
+}
+
+enum AlertStatus {
+  OPEN
+  ATTENDED
+}
+
+enum ReplenishmentStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  CANCELLED
+}
+
+model Business {
+  id         String                 @id @default(cuid())
+  name       String
+  createdAt  DateTime               @default(now())
+  users      User[]
+  products   Product[]
+  categories Category[]
+  suppliers  Supplier[]
+  movements  Movement[]
+  alerts     Alert[]
+  requests   ReplenishmentRequest[]
+  audits     StockAudit[]
+}
+
+model User {
+  id               String       @id @default(cuid())
+  businessId       String
+  business         Business     @relation(fields: [businessId], references: [id])
+  name             String
+  email            String       @unique
+  passwordHash     String
+  refreshTokenHash String?
+  refreshExpiresAt DateTime?
+  role             Role         @default(EMPLOYEE)
+  createdAt        DateTime     @default(now())
+  movements        Movement[]
+  alertsAttended   Alert[]      @relation("AlertAttendedBy")
+  audits           StockAudit[]
+
+  @@unique([businessId, id])
+  @@unique([businessId, email])
+  @@index([businessId])
+}
+
+model Category {
+  id         String    @id @default(cuid())
+  businessId String
+  business   Business  @relation(fields: [businessId], references: [id])
+  name       String
+  products   Product[]
+
+  @@unique([businessId, id])
+  @@unique([businessId, name])
+}
+
+model Supplier {
+  id         String                 @id @default(cuid())
+  businessId String
+  business   Business               @relation(fields: [businessId], references: [id])
+  name       String
+  email      String?
+  phone      String?
+  products   Product[]
+  requests   ReplenishmentRequest[]
+
+  @@unique([businessId, id])
+  @@index([businessId])
+}
+
+model Product {
+  id           String              @id @default(cuid())
+  businessId   String
+  business     Business            @relation(fields: [businessId], references: [id])
+  categoryId   String?
+  category     Category?           @relation(fields: [businessId, categoryId], references: [businessId, id])
+  supplierId   String?
+  supplier     Supplier?           @relation(fields: [businessId, supplierId], references: [businessId, id])
+  sku          String
+  name         String
+  unit         String              @default("pz")
+  quantity     Int                 @default(0)
+  minStock     Int                 @default(0)
+  price        Decimal             @default(0) @db.Decimal(12, 2)
+  active       Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  movements    Movement[]
+  alerts       Alert[]
+  requestItems ReplenishmentItem[]
+  auditLines   StockAuditLine[]
+
+  @@unique([businessId, id])
+  @@unique([businessId, sku])
+  @@index([businessId, name])
+  @@index([businessId, quantity, minStock])
+}
+
+model Movement {
+  id         String       @id @default(cuid())
+  businessId String
+  business   Business     @relation(fields: [businessId], references: [id])
+  productId  String
+  product    Product      @relation(fields: [businessId, productId], references: [businessId, id])
+  userId     String
+  user       User         @relation(fields: [businessId, userId], references: [businessId, id])
+  type       MovementType
+  quantity   Int
+  beforeQty  Int
+  afterQty   Int
+  reason     String
+  createdAt  DateTime     @default(now())
+
+  @@index([businessId, createdAt])
+}
+
+model Alert {
+  id            String      @id @default(cuid())
+  businessId    String
+  business      Business    @relation(fields: [businessId], references: [id])
+  productId     String
+  product       Product     @relation(fields: [businessId, productId], references: [businessId, id])
+  status        AlertStatus @default(OPEN)
+  createdAt     DateTime    @default(now())
+  attendedAt    DateTime?
+  attendedById  String?
+  attendedBy    User?       @relation("AlertAttendedBy", fields: [attendedById], references: [id])
+  falsePositive Boolean?
+
+  @@index([businessId, status, createdAt])
+}
+
+model ReplenishmentRequest {
+  id              String              @id @default(cuid())
+  businessId      String
+  business        Business            @relation(fields: [businessId], references: [id])
+  supplierId      String
+  supplier        Supplier            @relation(fields: [businessId, supplierId], references: [businessId, id])
+  status          ReplenishmentStatus @default(DRAFT)
+  alertId         String?
+  stockoutAvoided Boolean             @default(false)
+  notes           String?
+  createdAt       DateTime            @default(now())
+  receivedAt      DateTime?
+  items           ReplenishmentItem[]
+
+  @@unique([businessId, id])
+  @@index([businessId, status])
+}
+
+model ReplenishmentItem {
+  id         String               @id @default(cuid())
+  requestId  String
+  request    ReplenishmentRequest @relation(fields: [businessId, requestId], references: [businessId, id], onDelete: Cascade)
+  businessId String
+  productId  String
+  product    Product              @relation(fields: [businessId, productId], references: [businessId, id])
+  quantity   Int
+}
+
+model StockAudit {
+  id         String           @id @default(cuid())
+  businessId String
+  business   Business         @relation(fields: [businessId], references: [id])
+  userId     String
+  user       User             @relation(fields: [businessId, userId], references: [businessId, id])
+  createdAt  DateTime         @default(now())
+  lines      StockAuditLine[]
+
+  @@unique([businessId, id])
+  @@index([businessId, createdAt])
+}
+
+model StockAuditLine {
+  id               String     @id @default(cuid())
+  auditId          String
+  audit            StockAudit @relation(fields: [businessId, auditId], references: [businessId, id], onDelete: Cascade)
+  businessId       String
+  productId        String
+  product          Product    @relation(fields: [businessId, productId], references: [businessId, id])
+  systemQuantity   Int
+  physicalQuantity Int
+  accuracy         Float
+}

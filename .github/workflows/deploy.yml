@@ -1,0 +1,41 @@
+name: STOCKLY deploy
+on:
+  workflow_run:
+    workflows: [STOCKLY CI]
+    types: [completed]
+    branches: [main]
+jobs:
+  backup-and-deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Backup production database before deployment
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          BACKUP_PASSWORD: ${{ secrets.BACKUP_ENCRYPTION_PASSWORD }}
+        run: |
+          test -n "$DATABASE_URL" || (echo "Add PRODUCTION_DATABASE_URL to repository secrets." && exit 1)
+          test -n "$BACKUP_PASSWORD" || (echo "Add BACKUP_ENCRYPTION_PASSWORD to repository secrets." && exit 1)
+          mkdir -p backups
+          pg_dump "$DATABASE_URL" --format=custom --no-owner --no-privileges > backups/stockly.dump
+          gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase "$BACKUP_PASSWORD" --output backups/stockly.dump.gpg backups/stockly.dump
+          rm backups/stockly.dump
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stockly-predeploy-${{ github.event.workflow_run.head_sha }}
+          path: backups/stockly.dump.gpg
+          retention-days: 90
+      - name: Deploy the verified commit to Render API and web
+        env:
+          RENDER_API_TOKEN: ${{ secrets.RENDER_API_TOKEN }}
+          RENDER_API_SERVICE_ID: ${{ secrets.RENDER_API_SERVICE_ID }}
+          RENDER_WEB_SERVICE_ID: ${{ secrets.RENDER_WEB_SERVICE_ID }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          test -n "$RENDER_API_TOKEN" || (echo "Add RENDER_API_TOKEN to repository secrets." && exit 1)
+          test -n "$RENDER_API_SERVICE_ID" || (echo "Add RENDER_API_SERVICE_ID to repository secrets." && exit 1)
+          test -n "$RENDER_WEB_SERVICE_ID" || (echo "Add RENDER_WEB_SERVICE_ID to repository secrets." && exit 1)
+          curl --fail-with-body --silent --show-error --request POST "https://api.render.com/v1/services/$RENDER_API_SERVICE_ID/deploys" --header "Authorization: Bearer $RENDER_API_TOKEN" --header "Content-Type: application/json" --data "{\"commitId\":\"$COMMIT_SHA\"}"
+          curl --fail-with-body --silent --show-error --request POST "https://api.render.com/v1/services/$RENDER_WEB_SERVICE_ID/deploys" --header "Authorization: Bearer $RENDER_API_TOKEN" --header "Content-Type: application/json" --data "{\"commitId\":\"$COMMIT_SHA\"}"
