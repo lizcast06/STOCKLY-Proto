@@ -5,7 +5,6 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile.api
     dockerContext: .
-    dockerCommand: sh -c "npm run db:deploy && npm run start:api"
     healthCheckPath: /api/health
     autoDeployTrigger: off
     envVars:
