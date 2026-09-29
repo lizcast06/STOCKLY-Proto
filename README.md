@@ -14,6 +14,15 @@ Requisitos: Node.js 20.19+ o 22.12+, npm y Docker Desktop.
 6. Inicia web y API: `npm run dev`.
 7. Abre <http://localhost:5173> y crea la cuenta administradora de tu negocio.
 
+### Usuarios de prueba
+
+Con PostgreSQL local iniciado y las migraciones aplicadas, ejecuta `npm run db:seed:demo` para crear o restablecer dos cuentas de prueba aisladas en el negocio `STOCKLY Demo`:
+
+- Administrador: `admin@stockly.test` / `StocklyDemo2026!`
+- Empleado: `empleado@stockly.test` / `StocklyDemo2026!`
+
+El comando se bloquea si `NODE_ENV=production`. En Windows, asegúrate de tener Docker Desktop abierto y PostgreSQL en ejecución antes de iniciar la app. `Failed to fetch` normalmente significa que la web no logra conectar con la API; revisa que `npm run dev` mantenga activos ambos procesos y que <http://localhost:3001/api/health> responda con estado `ok`.
+
 También puedes levantar todo con `docker compose up --build`; la web queda en el puerto 5173 y la API en el 3001. Para detener los servicios: `docker compose down`. Los datos locales viven en el volumen Docker `stockly_pg`.
 
 ## Flujos disponibles
