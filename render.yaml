@@ -27,7 +27,7 @@ services:
     autoDeployTrigger: off
     envVars:
       - key: VITE_API_URL
-        value: https://stockly-api.onrender.com
+        value: https://stockly-api-p6cl.onrender.com
 
 databases:
   - name: stockly-db
