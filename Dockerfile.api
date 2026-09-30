@@ -18,4 +18,4 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 EXPOSE 3001
-CMD ["npm", "run", "start:api"]
+CMD ["sh", "-c", "npm run db:deploy && npm run start:api"]
