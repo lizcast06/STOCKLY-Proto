@@ -91,8 +91,8 @@ function passwordMatches(password: string, stored: string) {
 function hashToken(token: string) { return createHash('sha256').update(token).digest('hex') }
 function setSessionCookies(res: Response, user: Session, refreshToken: string) {
   const accessToken = sign({ ...user, exp: Math.floor(Date.now() / 1000) + 15 * 60 })
-  res.cookie(cookieName, accessToken, { httpOnly: true, secure: isProd, sameSite: 'lax', maxAge: 15 * 60 * 1000, path: '/' })
-  res.cookie(refreshCookieName, refreshToken, { httpOnly: true, secure: isProd, sameSite: 'strict', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/' })
+  res.cookie(cookieName, accessToken, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', maxAge: 15 * 60 * 1000, path: '/' })
+  res.cookie(refreshCookieName, refreshToken, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'strict', maxAge: 7 * 24 * 60 * 60 * 1000, path: '/' })
 }
 async function setSession(res: Response, user: Session) {
   const refreshToken = randomBytes(48).toString('base64url')
@@ -166,8 +166,8 @@ app.post('/api/auth/refresh', route(async (req, res) => {
 app.post('/api/auth/logout', route(async (req, res) => {
   const refreshToken = req.cookies?.[refreshCookieName]
   if (refreshToken) await prisma.user.updateMany({ where: { refreshTokenHash: hashToken(refreshToken) }, data: { refreshTokenHash: null, refreshExpiresAt: null } })
-  res.clearCookie(cookieName, { httpOnly: true, secure: isProd, sameSite: 'lax', path: '/' })
-  res.clearCookie(refreshCookieName, { httpOnly: true, secure: isProd, sameSite: 'strict', path: '/' })
+  res.clearCookie(cookieName, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'lax', path: '/' })
+  res.clearCookie(refreshCookieName, { httpOnly: true, secure: isProd, sameSite: isProd ? 'none' : 'strict', path: '/' })
   res.status(204).end()
 }))
 app.get('/api/auth/me', requireAuth, (req, res) => res.json({ user: req.session }))
